@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suresh's Poker Buy-in Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chip-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            border-radius: 50%;
+            border: 2px solid #92400e;
+        }
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .session-indicator {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+        .notification {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-900 via-green-800 to-green-900 min-h-screen text-white">
+    <!-- Authentication Screen -->
+    <div id="authScreen" class="auth-container">
+        <div class="glass-effect rounded-2xl p-8 max-w-md w-full mx-4 fade-in">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold mb-2 flex items-center justify-center gap-3">
+                    <span class="chip-icon"></span>
+                    Suresh's Poker Buy-in Manager
+                    <span class="chip-icon"></span>
+                </h1>
+                <p class="text-green-200">Please sign in to continue</p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">Email Address</label>
+                    <input type="email" id="emailInput" placeholder="Enter your Gmail address" 
+                           class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                </div>
+                <button onclick="requestOTP()" 
+                        class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold py-3 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-envelope"></i> Send One-Time Passcode
+                </button>
+            </div>
+
+            <!-- OTP Form -->
+            <div id="otpForm" class="hidden">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">One-Time Passcode</label>
+                    <input type="text" id="otpInput" placeholder="Enter 6-digit code" maxlength="6"
+                           class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 text-center text-2xl tracking-widest">
+                    <p class="text-sm text-green-200 mt-2">Check your email for the passcode</p>
+                </div>
+                <button onclick="verifyOTP()" 
+                        class="w-full bg-green-500 hover:bg-green-600 font-semibold py-3 px-4 rounded-lg transition-colors mb-3">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+                <button onclick="backToLogin()" 
+                        class="w-full bg-gray-500 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+
+            <!-- Request Access Form -->
+            <div id="requestForm" class="hidden">
+                <div class="mb-6">
+                    <p class="text-yellow-300 mb-4">Your email is not registered. Request access below:</p>
+                    <textarea id="requestMessage" placeholder="Optional: Add a message for the admin" 
+                              class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 h-24"></textarea>
+                </div>
+                <button onclick="requestAccess()" 
+                        class="w-full bg-blue-500 hover:bg-blue-600 font-semibold py-3 px-4 rounded-lg transition-colors mb-3">
+                    <i class="fas fa-paper-plane"></i> Request Access
+                </button>
+                <button onclick="backToLogin()" 
+                        class="w-full bg-gray-500 hover:bg-gray-600 font-semibold py-3 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="hidden">
+        <!-- Session Indicator -->
+        <div id="sessionIndicator" class="session-indicator hidden">
+            <div class="bg-yellow-500 text-gray-900 px-4 py-2 rounded-full shadow-lg text-sm font-semibold">
+                <i class="fas fa-clock"></i> <span id="sessionStatus">No Active Session</span>
+            </div>
+        </div>
+        
+        <div class="container mx-auto px-4 py-8 max-w-6xl">
+            <!-- Header with User Info -->
+            <header class="mb-8">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="text-center flex-1">
+                        <h1 class="text-4xl font-bold mb-2 flex items-center justify-center gap-3">
+                            <span class="chip-icon"></span>
+                            Suresh's Poker Buy-in Manager
+                            <span class="chip-icon"></span>
+                        </h1>
+                        <p class="text-green-200">Track buy-ins, manage players, and calculate settlements easily</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <div class="text-sm text-green-200">Signed in as</div>
+                            <div class="font-semibold" id="userEmail">user@example.com</div>
+                            <div class="text-xs text-yellow-300" id="userRole">Admin</div>
+                        </div>
+                        <button onclick="logout()" 
+                                class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Admin Panel -->
+                <div id="adminPanel" class="bg-white/10 backdrop-blur-md rounded-xl p-6 mb-8 hidden">
+                    <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-user-shield"></i> Admin Panel
+                    </h2>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- User Management -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">User Management</h3>
+                            <div class="space-y-3">
+                                <div class="flex gap-2">
+                                    <input type="email" id="inviteEmail" placeholder="Enter Gmail to invite" 
+                                           class="flex-1 px-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                                    <button onclick="inviteUser()" 
+                                            class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg transition-colors">
+                                        <i class="fas fa-paper-plane"></i> Invite
+                                    </button>
+                                </div>
+                                <div id="userList" class="space-y-2 max-h-40 overflow-y-auto">
+                                    <!-- Users will be listed here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Access Requests -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">Access Requests</h3>
+                            <div id="accessRequests" class="space-y-2 max-h-40 overflow-y-auto">
+                                <!-- Requests will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+        <!-- Game Settings -->
+        <section class="bg-white/10 backdrop-blur-md rounded-xl p-6 mb-8">
+            <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-cog"></i> Game Settings
+            </h2>
+            <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Chips per Buy-in</label>
+                    <input type="number" id="chipsPerBuyin" value="100" min="1" 
+                           class="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Dollar Value per Buy-in</label>
+                    <input type="number" id="dollarPerBuyin" value="20" min="0.01" step="0.01"
+                           class="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="updateGameSettings()" 
+                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-semibold py-2 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-save"></i> Update Settings
+                    </button>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-green-200">
+                <span id="settingsInfo">1 Buy-in = 100 chips = $20.00</span>
+            </div>
+        </section>
+
+        <!-- Add Player Section -->
+        <section class="bg-white/10 backdrop-blur-md rounded-xl p-6 mb-8">
+            <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-user-plus"></i> Add Player
+            </h2>
+            <div class="flex gap-4">
+                <input type="text" id="playerName" placeholder="Enter player name" 
+                       class="flex-1 px-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                <button onclick="addPlayer()" 
+                        class="bg-green-500 hover:bg-green-600 font-semibold py-2 px-6 rounded-lg transition-colors">
+                    <i class="fas fa-plus"></i> Add Player
+                </button>
+            </div>
+        </section>
+
+        <!-- Players Table -->
+        <section class="bg-white/10 backdrop-blur-md rounded-xl p-6 mb-8">
+            <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-users"></i> Players & Buy-ins
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-white/20">
+                            <th class="text-left py-3 px-4">Player</th>
+                            <th class="text-center py-3 px-4">Total Buy-ins</th>
+                            <th class="text-center py-3 px-4">Total Chips</th>
+                            <th class="text-center py-3 px-4">Total Spent</th>
+                            <th class="text-center py-3 px-4">Current Chips</th>
+                            <th class="text-center py-3 px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="playersTableBody">
+                        <!-- Players will be added here dynamically -->
+                    </tbody>
+                </table>
+                <div id="noPlayersMessage" class="text-center py-8 text-green-200">
+                    <i class="fas fa-user-slash text-4xl mb-2"></i>
+                    <p>No players added yet. Add your first player above!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- End Game Section -->
+        <section class="bg-white/10 backdrop-blur-md rounded-xl p-6">
+            <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-calculator"></i> End Game Settlement
+            </h2>
+            <button onclick="toggleEndGameMode()" id="endGameBtn"
+                    class="bg-red-500 hover:bg-red-600 font-semibold py-2 px-6 rounded-lg transition-colors mb-4">
+                <i class="fas fa-flag-checkered"></i> Start End Game
+            </button>
+            <div id="settlementSection" class="hidden">
+                <p class="mb-4 text-yellow-300">Enter each player's final chip count to calculate settlements:</p>
+                <div id="finalChipsInputs" class="space-y-3 mb-4">
+                    <!-- Final chip inputs will be added here -->
+                </div>
+                <button onclick="calculateSettlement()" 
+                        class="bg-blue-500 hover:bg-blue-600 font-semibold py-2 px-6 rounded-lg transition-colors">
+                    <i class="fas fa-calculator"></i> Calculate Settlement
+                </button>
+                <div id="settlementResults" class="mt-6">
+                    <!-- Settlement results will be shown here -->
+                </div>
+            </div>
+        </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -419,7 +419,6 @@ function updateSessionDisplay() {
             sessionInfo.innerHTML = `
                 <p class="text-xs"><strong>Session:</strong> ${sessionState.id}</p>
                 <p class="text-xs"><strong>Duration:</strong> ${duration} min</p>
-                <p class="text-xs"><strong>Tolerance:</strong> ±${sessionState.tolerancePercent}%</p>
                 ${settlementStatus}
             `;
         }

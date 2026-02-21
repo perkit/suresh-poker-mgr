@@ -1042,6 +1042,8 @@ function toggleEndGameMode() {
         btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
         generateFinalChipsInputs();
     } else {
+        // When clicking Start Settlement again, automatically calculate
+        calculateSettlement();
         section.classList.add('hidden');
         btn.innerHTML = '<i class="fas fa-calculator"></i> Start Settlement';
         btn.classList.remove('bg-gray-500', 'hover:bg-gray-600');

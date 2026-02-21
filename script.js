@@ -148,6 +148,19 @@ function loadGameState() {
     const saved = localStorage.getItem('pokerGameState');
     if (saved) {
         gameState = JSON.parse(saved);
+        
+        // Check if game was ended and reset to clean state
+        if (sessionState && sessionState.gameEnded) {
+            gameState = {
+                chipsPerBuyin: 100,
+                dollarPerBuyin: 20,
+                players: [],
+                sessionActive: false,
+                sessionStartedAt: null,
+                sessionCompleted: false
+            };
+            saveGameState();
+        }
     }
 }
 
@@ -422,8 +435,7 @@ function updateUserList() {
     const userList = document.getElementById('userList');
     userList.innerHTML = authState.users.map(user => {
         const roleDisplay = user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const canManage = authState.currentUser.role === 'super_admin' || 
-                        (authState.currentUser.role === 'admin' && user.role === 'viewer');
+        const canManage = authState.currentUser.role === 'super_admin' && user.role !== 'super_admin';
         
         return `
         <div class="flex justify-between items-center p-2 bg-white/10 rounded">
@@ -432,7 +444,7 @@ function updateUserList() {
                 <div class="text-xs text-green-200">${roleDisplay} • ${user.status}</div>
                 ${user.addedBy ? `<div class="text-xs text-yellow-200">Added by: ${user.addedBy}</div>` : ''}
             </div>
-            ${canManage && user.role !== 'super_admin' ? `
+            ${canManage ? `
                 <button onclick="removeUser(${user.id})" class="text-red-400 hover:text-red-300">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -482,24 +494,14 @@ function inviteUser() {
         return;
     }
     
-    // Determine available roles based on current user's role
-    let availableRoles = ['viewer'];
-    if (authState.currentUser.role === 'super_admin') {
-        availableRoles = ['viewer', 'admin'];
-    }
-    
-    const roleOptions = availableRoles.map((role, index) => 
-        `${index + 1}. ${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}`
-    ).join('\n');
-    
-    const roleChoice = prompt(`Select role for ${email}:\n${roleOptions}\n\nEnter number (1-${availableRoles.length}):`);
-    
-    if (!roleChoice || !availableRoles[parseInt(roleChoice) - 1]) {
-        alert('Invalid role selection');
+    // Only super admin can invite, and only viewers can be invited
+    if (authState.currentUser.role !== 'super_admin') {
+        alert('Only Super Admin can invite users');
         return;
     }
     
-    const selectedRole = availableRoles[parseInt(roleChoice) - 1];
+    // Only invite as viewer - admins cannot be created
+    const selectedRole = 'viewer';
     
     // Add user
     authState.users.push({
@@ -515,8 +517,7 @@ function inviteUser() {
     updateAdminPanel();
     
     document.getElementById('inviteEmail').value = '';
-    const roleDisplay = selectedRole.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-    alert(`User ${email} added with ${roleDisplay} access`);
+    alert(`User ${email} added with viewer access (read-only)`);
 }
 
 // Approve request
@@ -524,13 +525,20 @@ function approveRequest(requestId) {
     const request = authState.accessRequests.find(r => r.id === requestId);
     if (!request) return;
     
-    // Add user with viewer role
+    // Only super admin can approve requests
+    if (authState.currentUser.role !== 'super_admin') {
+        alert('Only Super Admin can approve access requests');
+        return;
+    }
+    
+    // Add user with viewer role only
     authState.users.push({
         id: Date.now(),
         email: request.email,
         role: 'viewer',
         status: 'approved',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        addedBy: authState.currentUser.email
     });
     
     // Remove request
@@ -539,7 +547,7 @@ function approveRequest(requestId) {
     saveAuthState();
     updateAdminPanel();
     
-    alert(`Access approved for ${request.email}`);
+    alert(`Access approved for ${request.email} with viewer access (read-only)`);
 }
 
 // Reject request
@@ -620,7 +628,7 @@ function endTheGame() {
     
     if (!confirmEnd) return;
     
-    // Save session to history
+    // Save session to history with detailed profit/loss data
     const sessionData = {
         id: sessionState.id,
         startedAt: sessionState.startedAt,
@@ -632,7 +640,9 @@ function endTheGame() {
             dollarPerBuyin: gameState.dollarPerBuyin
         },
         completedBy: authState.currentUser.email,
-        archivedAt: Date.now()
+        archivedAt: Date.now(),
+        // Calculate profit/loss for each player
+        playerResults: calculatePlayerResults()
     };
     
     historicalSessions.unshift(sessionData);
@@ -656,6 +666,29 @@ function endTheGame() {
         
         showNotification('App reset to clean state. Ready for new game!', 'info');
     }, 2000);
+}
+
+// Calculate player results for historical data
+function calculatePlayerResults() {
+    const totalBuyins = gameState.players.reduce((sum, p) => sum + p.buyins, 0);
+    const totalChipsInPlay = totalBuyins * gameState.chipsPerBuyin;
+    const totalDollarsInPlay = totalBuyins * gameState.dollarPerBuyin;
+    const chipValue = totalDollarsInPlay / totalChipsInPlay;
+    
+    return gameState.players.map(player => {
+        const finalValue = player.currentChips * chipValue;
+        const profit = finalValue - player.totalSpent;
+        
+        return {
+            name: player.name,
+            buyins: player.buyins,
+            totalSpent: player.totalSpent,
+            finalChips: player.currentChips,
+            finalValue: finalValue,
+            profit: profit,
+            profitPercentage: ((profit / player.totalSpent) * 100).toFixed(1)
+        };
+    });
 }
 
 // Show historical sessions
@@ -696,20 +729,45 @@ function showHistoricalSessions() {
                         </div>
                     </div>
                     
-                    <div class="bg-white/10 rounded p-3">
+                    <div class="bg-white/10 rounded p-3 mb-3">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm font-semibold">Game Summary:</span>
                             <span class="text-sm">${session.settings.chipsPerBuyin} chips = $${session.settings.dollarPerBuyin.toFixed(2)}</span>
                         </div>
                         <p class="text-sm">Total Buy-ins: ${totalBuyins} ($${totalDollars.toFixed(2)})</p>
-                        
-                        <div class="mt-2">
-                            <p class="text-xs text-gray-400 mb-1">Players:</p>
-                            <div class="flex flex-wrap gap-1">
-                                ${session.players.map(p => 
-                                    `<span class="text-xs bg-white/20 px-2 py-1 rounded">${p.name} (${p.buyins} buy-ins)</span>`
-                                ).join('')}
+                    </div>
+                    
+                    ${session.playerResults ? `
+                        <div class="bg-white/10 rounded p-3">
+                            <h4 class="font-semibold mb-2 text-sm">Player Results:</h4>
+                            <div class="space-y-2">
+                                ${session.playerResults.map(player => {
+                                    const profitClass = player.profit >= 0 ? 'text-green-400' : 'text-red-400';
+                                    const profitSign = player.profit >= 0 ? '+' : '';
+                                    return `
+                                        <div class="flex justify-between items-center p-2 bg-white/10 rounded">
+                                            <div class="flex-1">
+                                                <span class="font-medium text-sm">${player.name}</span>
+                                                <span class="text-xs text-gray-400 ml-2">(${player.buyins} buy-ins)</span>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="text-xs text-gray-300">Spent: $${player.totalSpent.toFixed(2)}</div>
+                                                <div class="text-xs text-gray-300">Final: $${player.finalValue.toFixed(2)}</div>
+                                                <div class="text-sm font-semibold ${profitClass}">${profitSign}$${player.profit.toFixed(2)} (${player.profitPercentage}%)</div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="mt-2">
+                        <p class="text-xs text-gray-400 mb-1">Players:</p>
+                        <div class="flex flex-wrap gap-1">
+                            ${session.players.map(p => 
+                                `<span class="text-xs bg-white/20 px-2 py-1 rounded">${p.name} (${p.buyins} buy-ins)</span>`
+                            ).join('')}
                         </div>
                     </div>
                 </div>

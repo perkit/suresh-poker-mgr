@@ -1063,8 +1063,9 @@ function generateFinalChipsInputs() {
             <label class="flex-1 font-medium">${player.name}:</label>
             <input type="number" 
                    id="final-${player.id}" 
-                   value="${player.currentChips}" 
+                   value=""
                    min="0"
+                   placeholder="Enter final chips"
                    class="w-32 px-3 py-1 bg-white/20 border border-white/30 rounded focus:outline-none focus:ring-2 focus:ring-yellow-400">
             <span class="text-sm text-green-200">chips</span>
         `;

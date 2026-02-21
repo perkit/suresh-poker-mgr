@@ -1037,17 +1037,16 @@ function toggleEndGameMode() {
 
     if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');
-        btn.innerHTML = '<i class="fas fa-times"></i> Cancel Settlement';
+        btn.innerHTML = '<i class="fas fa-calculator"></i> Calculate Settlement';
         btn.classList.remove('bg-purple-500', 'hover:bg-purple-600');
-        btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
+        btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
         generateFinalChipsInputs();
     } else {
-        // When clicking Start Settlement again, automatically calculate
+        // Calculate settlement and show results
         calculateSettlement();
-        section.classList.add('hidden');
-        btn.innerHTML = '<i class="fas fa-calculator"></i> Start Settlement';
-        btn.classList.remove('bg-gray-500', 'hover:bg-gray-600');
-        btn.classList.add('bg-purple-500', 'hover:bg-purple-600');
+        btn.innerHTML = '<i class="fas fa-times"></i> Close Settlement';
+        btn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
     }
 }
 
@@ -1084,6 +1083,13 @@ function calculateSettlement() {
         finalChips[player.id] = parseInt(input.value) || 0;
     });
     
+    // Validate all players have chip counts entered
+    const emptyInputs = gameState.players.filter(player => !finalChips[player.id]);
+    if (emptyInputs.length > 0) {
+        alert('Please enter final chip counts for all players');
+        return;
+    }
+    
     // Calculate totals
     const totalBuyins = gameState.players.reduce((sum, p) => sum + p.buyins, 0);
     const totalChipsInPlay = totalBuyins * gameState.chipsPerBuyin;
@@ -1119,37 +1125,35 @@ function calculateSettlement() {
             <div class="space-y-3">
     `;
     
-    playerResults.forEach(result => {
-        const profitClass = result.profit >= 0 ? 'text-green-400' : 'text-red-400';
-        const profitSign = result.profit >= 0 ? '+' : '';
+    playerResults.forEach(player => {
+        const profitClass = player.profit >= 0 ? 'text-green-400' : 'text-red-400';
+        const profitSign = player.profit >= 0 ? '+' : '';
         
         html += `
-            <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
+            <div class="flex justify-between items-center p-3 bg-white/10 rounded">
                 <div>
-                    <strong>${result.name}</strong>
-                    <span class="text-sm text-green-200 ml-2">(${result.buyins} buy-ins)</span>
+                    <span class="font-medium">${player.name}</span>
+                    <span class="text-sm text-gray-300 ml-2">(${player.buyins} buy-ins)</span>
                 </div>
                 <div class="text-right">
-                    <div class="text-sm">Spent: $${result.totalSpent.toFixed(2)}</div>
-                    <div class="text-sm">Final: $${result.finalValue.toFixed(2)}</div>
-                    <div class="font-semibold ${profitClass}">${profitSign}$${result.profit.toFixed(2)}</div>
+                    <div class="text-sm">Spent: $${player.totalSpent.toFixed(2)}</div>
+                    <div class="text-sm">Final: $${player.finalValue.toFixed(2)}</div>
+                    <div class="font-semibold ${profitClass}">${profitSign}$${player.profit.toFixed(2)}</div>
                 </div>
             </div>
         `;
     });
     
-    html += `
-            </div>
-            <div class="mt-6 p-4 bg-yellow-500/20 rounded-lg">
-                <h4 class="font-semibold mb-2">Settlement Suggestions:</h4>
-                <div class="text-sm space-y-1">
-    `;
-    
-    // Generate settlement suggestions with tolerance
-    const winners = playerResults.filter(r => r.profit > 0).sort((a, b) => b.profit - a.profit);
-    const losers = playerResults.filter(r => r.profit < 0).sort((a, b) => a.profit - b.profit);
+    // Calculate who owes whom
+    const winners = playerResults.filter(p => p.profit > 0);
+    const losers = playerResults.filter(p => p.profit < 0);
     
     if (winners.length > 0 && losers.length > 0) {
+        html += `
+            <div class="mt-4 p-4 bg-yellow-500/20 rounded-lg">
+                <h4 class="font-semibold mb-2">Settlement Payments:</h4>
+        `;
+        
         winners.forEach(winner => {
             losers.forEach(loser => {
                 const amount = Math.min(winner.profit, Math.abs(loser.profit));
@@ -1159,43 +1163,18 @@ function calculateSettlement() {
             });
         });
         
-        // Check if settlement is within tolerance
-        const totalChipsCounted = playerResults.reduce((sum, p) => sum + p.finalChips, 0);
-        const expectedChips = totalChipsInPlay;
-        const difference = Math.abs(totalChipsCounted - expectedChips);
-        const tolerance = expectedChips * (sessionState.tolerancePercent / 100);
-        
-        if (difference <= tolerance) {
-            html += `<div class="mt-3 p-3 bg-green-500/20 rounded-lg">
-                <p class="text-sm font-semibold text-green-300">✅ Settlement Valid</p>
-                <p class="text-xs">Chip count difference: ${difference} chips (within ±${sessionState.tolerancePercent}% tolerance)</p>
-            </div>`;
-            
-            // Mark settlement as complete
-            sessionState.settlementRequired = false;
-            updateSessionDisplay();
-            
-            showNotification('Settlement calculated successfully! Session can now be ended.', 'success');
-        } else {
-            html += `<div class="mt-3 p-3 bg-red-500/20 rounded-lg">
-                <p class="text-sm font-semibold text-red-300">⚠️ Settlement Invalid</p>
-                <p class="text-xs">Chip count difference: ${difference} chips (exceeds ±${sessionState.tolerancePercent}% tolerance)</p>
-                <p class="text-xs">Please adjust final chip counts to match total chips in play.</p>
-            </div>`;
-            
-            showNotification('Settlement outside tolerance range. Please check chip counts.', 'warning');
-        }
-    } else {
-        html += '<p>No settlements needed - all players broke even!</p>';
+        html += '</div>';
     }
     
-    html += `
-                </div>
-            </div>
-        </div>
-    `;
+    html += '</div></div>';
     
     results.innerHTML = html;
+    
+    // Mark settlement as complete and show end session button
+    sessionState.settlementRequired = false;
+    updateSessionDisplay();
+    
+    showNotification('Settlement calculated successfully!', 'success');
 }
 
 // Update the entire display

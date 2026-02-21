@@ -26,14 +26,51 @@ let sessionState = {
     completedAt: null,
     completedBy: null,
     settlementRequired: true,
-    tolerancePercent: 2
+    tolerancePercent: 2,
+    gameEnded: false
 };
+
+// Historical sessions storage
+let historicalSessions = [];
+
+// Reset to clean state after game ends
+function resetToCleanState() {
+    // Clear game state but keep historical sessions
+    gameState = {
+        chipsPerBuyin: 100,
+        dollarPerBuyin: 20,
+        players: [],
+        sessionActive: false,
+        sessionStartedAt: null,
+        sessionCompleted: false
+    };
+    
+    // Reset session state
+    sessionState = {
+        id: null,
+        startedAt: null,
+        isActive: false,
+        completed: false,
+        completedAt: null,
+        completedBy: null,
+        settlementRequired: true,
+        tolerancePercent: 2,
+        gameEnded: false
+    };
+    
+    // Save clean state
+    saveGameState();
+    saveSessionState();
+    
+    console.log('App reset to clean state after game ended');
+}
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     loadAuthState();
     loadGameState();
     loadSessionState();
+    loadHistoricalSessions();
     
     // Initialize admin user if first time
     if (authState.users.length === 0) {
@@ -114,16 +151,30 @@ function loadGameState() {
     }
 }
 
+// Load historical sessions
+function loadHistoricalSessions() {
+    const stored = localStorage.getItem('pokerHistoricalSessions');
+    if (stored) {
+        historicalSessions = JSON.parse(stored);
+    }
+}
+
+// Save historical sessions
+function saveHistoricalSessions() {
+    localStorage.setItem('pokerHistoricalSessions', JSON.stringify(historicalSessions));
+}
+
 // Load session state
 function loadSessionState() {
-    const saved = localStorage.getItem('pokerSessionState');
-    if (saved) {
-        sessionState = JSON.parse(saved);
+    const stored = localStorage.getItem('pokerSessionState');
+    if (stored) {
+        sessionState = JSON.parse(stored);
         
-        // Check if there's an active session that hasn't been properly completed
-        if (sessionState.isActive && !sessionState.completed) {
-            console.log('Active session detected from previous session');
-            // Session will be restored when user logs in
+        // If game was ended, reset to clean state
+        if (sessionState.gameEnded) {
+            resetToCleanState();
+        } else {
+            restoreSession();
         }
     }
 }
@@ -329,6 +380,7 @@ function updateSessionDisplay() {
     const sessionInfo = document.getElementById('sessionInfo');
     const startBtn = document.getElementById('startSessionBtn');
     const completeBtn = document.getElementById('completeSessionBtn');
+    const endGameBtn = document.getElementById('endGameBtn');
     const sessionIndicator = document.getElementById('sessionIndicator');
     const sessionStatus = document.getElementById('sessionStatus');
     
@@ -336,6 +388,7 @@ function updateSessionDisplay() {
         if (sessionInfo) sessionInfo.innerHTML = '<p class="text-xs text-green-200">No active session</p>';
         if (startBtn) startBtn.disabled = false;
         if (completeBtn) completeBtn.disabled = true;
+        if (endGameBtn) endGameBtn.disabled = true;
         if (sessionIndicator) {
             sessionIndicator.classList.add('hidden');
         }
@@ -356,6 +409,7 @@ function updateSessionDisplay() {
         }
         if (startBtn) startBtn.disabled = true;
         if (completeBtn) completeBtn.disabled = sessionState.settlementRequired;
+        if (endGameBtn) endGameBtn.disabled = sessionState.settlementRequired;
         if (sessionIndicator && sessionStatus) {
             sessionIndicator.classList.remove('hidden');
             sessionStatus.textContent = `Session Active (${duration} min)`;
@@ -549,51 +603,126 @@ function startNewSession() {
     showNotification('Session started successfully! All data will be preserved even if browser is closed.', 'success');
 }
 
-// Complete session
-function completeSession() {
+// End the game completely
+function endTheGame() {
     if (!sessionState.isActive) {
-        alert('No active session to complete');
+        alert('No active session to end');
         return;
     }
     
-    // Check if settlement is required
     if (sessionState.settlementRequired) {
-        alert('Cannot end session: Settlement must be calculated first.\n\nPlease use the End Game Settlement feature to finalize buy-ins.');
+        alert('Cannot end game: Settlement must be calculated first.\n\nPlease use the End Game Settlement feature to finalize buy-ins.');
         return;
     }
     
-    // First confirmation
-    const firstConfirm = confirm('Are you sure you want to complete the session?\n\nThis will finalize all buy-ins and close the session.');
-    if (!firstConfirm) return;
-    
-    // Second confirmation with more details
     const duration = Math.floor((Date.now() - sessionState.startedAt) / 60000);
-    const secondConfirm = confirm(`FINAL CONFIRMATION:\n\nComplete session ${sessionState.id}?\nDuration: ${duration} minutes\nPlayers: ${gameState.players.length}\n\nThis action cannot be undone!`);
+    const confirmEnd = confirm(`END THE GAME - FINAL CONFIRMATION:\n\nThis will permanently end session ${sessionState.id}:\nDuration: ${duration} minutes\nPlayers: ${gameState.players.length}\n\n• All game data will be archived\n• App will reset to clean state\n• Old participants will be cleared\n• You can view history anytime\n\nThis action cannot be undone!`);
     
-    if (!secondConfirm) return;
+    if (!confirmEnd) return;
     
-    // Gracefully complete session
+    // Save session to history
+    const sessionData = {
+        id: sessionState.id,
+        startedAt: sessionState.startedAt,
+        completedAt: Date.now(),
+        duration: duration,
+        players: [...gameState.players],
+        settings: {
+            chipsPerBuyin: gameState.chipsPerBuyin,
+            dollarPerBuyin: gameState.dollarPerBuyin
+        },
+        completedBy: authState.currentUser.email,
+        archivedAt: Date.now()
+    };
+    
+    historicalSessions.unshift(sessionData);
+    saveHistoricalSessions();
+    
+    // Mark game as ended
+    sessionState.gameEnded = true;
     sessionState.completed = true;
     sessionState.completedAt = Date.now();
     sessionState.completedBy = authState.currentUser.email;
     
-    gameState.sessionCompleted = true;
-    gameState.sessionActive = false;
-    
     saveSessionState();
-    saveGameState();
-    updateSessionDisplay();
     
-    showNotification(`Session ${sessionState.id} completed successfully`, 'success');
+    showNotification(`Game ended successfully! Session ${sessionState.id} archived.`, 'success');
     
-    // Clear settlement data after completion
+    // Reset to clean state after a short delay
     setTimeout(() => {
-        if (confirm('Session completed successfully! Would you like to start a new session?')) {
-            // Reset for new session
-            sessionState.settlementRequired = true;
-            updateSessionDisplay();
-        }
+        resetToCleanState();
+        updateSessionDisplay();
+        updateDisplay();
+        
+        showNotification('App reset to clean state. Ready for new game!', 'info');
     }, 2000);
+}
+
+// Show historical sessions
+function showHistoricalSessions() {
+    const modal = document.getElementById('historicalModal');
+    const content = document.getElementById('historicalContent');
+    
+    if (historicalSessions.length === 0) {
+        content.innerHTML = '<p class="text-center text-gray-400">No historical sessions found.</p>';
+    } else {
+        content.innerHTML = historicalSessions.map(session => {
+            const startDate = new Date(session.startedAt).toLocaleString();
+            const endDate = new Date(session.completedAt).toLocaleString();
+            const totalBuyins = session.players.reduce((sum, p) => sum + p.buyins, 0);
+            const totalDollars = totalBuyins * session.settings.dollarPerBuyin;
+            
+            return `
+                <div class="bg-white/10 rounded-lg p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-semibold text-lg">${session.id}</h3>
+                            <p class="text-sm text-gray-300">Completed by ${session.completedBy}</p>
+                        </div>
+                        <div class="text-right text-sm">
+                            <p class="text-green-300">Duration: ${session.duration} min</p>
+                            <p class="text-blue-300">${session.players.length} players</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4 mb-3">
+                        <div>
+                            <p class="text-xs text-gray-400">Started:</p>
+                            <p class="text-sm">${startDate}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400">Ended:</p>
+                            <p class="text-sm">${endDate}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white/10 rounded p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-semibold">Game Summary:</span>
+                            <span class="text-sm">${session.settings.chipsPerBuyin} chips = $${session.settings.dollarPerBuyin.toFixed(2)}</span>
+                        </div>
+                        <p class="text-sm">Total Buy-ins: ${totalBuyins} ($${totalDollars.toFixed(2)})</p>
+                        
+                        <div class="mt-2">
+                            <p class="text-xs text-gray-400 mb-1">Players:</p>
+                            <div class="flex flex-wrap gap-1">
+                                ${session.players.map(p => 
+                                    `<span class="text-xs bg-white/20 px-2 py-1 rounded">${p.name} (${p.buyins} buy-ins)</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+// Close historical modal
+function closeHistoricalModal() {
+    document.getElementById('historicalModal').classList.add('hidden');
 }
 
 // Show notification

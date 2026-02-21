@@ -392,16 +392,21 @@ function updateSessionInfo() {
 function updateSessionDisplay() {
     const sessionInfo = document.getElementById('sessionInfo');
     const startBtn = document.getElementById('startSessionBtn');
-    const completeBtn = document.getElementById('completeSessionBtn');
     const endGameBtn = document.getElementById('endGameBtn');
+    const settlementBtn = document.getElementById('settlementBtn');
+    const completeSessionBtn = document.getElementById('completeSessionBtn');
     const sessionIndicator = document.getElementById('sessionIndicator');
     const sessionStatus = document.getElementById('sessionStatus');
     
     if (!sessionState.isActive) {
         if (sessionInfo) sessionInfo.innerHTML = '<p class="text-xs text-green-200">No active session</p>';
         if (startBtn) startBtn.disabled = false;
-        if (completeBtn) completeBtn.disabled = true;
         if (endGameBtn) endGameBtn.disabled = true;
+        if (settlementBtn) settlementBtn.disabled = true;
+        if (completeSessionBtn) {
+            completeSessionBtn.classList.add('hidden');
+            completeSessionBtn.disabled = true;
+        }
         if (sessionIndicator) {
             sessionIndicator.classList.add('hidden');
         }
@@ -421,8 +426,20 @@ function updateSessionDisplay() {
             `;
         }
         if (startBtn) startBtn.disabled = true;
-        if (completeBtn) completeBtn.disabled = sessionState.settlementRequired;
         if (endGameBtn) endGameBtn.disabled = sessionState.settlementRequired;
+        if (settlementBtn) settlementBtn.disabled = false;
+        
+        // Show/hide End Session button based on settlement status
+        if (completeSessionBtn) {
+            if (!sessionState.settlementRequired) {
+                completeSessionBtn.classList.remove('hidden');
+                completeSessionBtn.disabled = false;
+            } else {
+                completeSessionBtn.classList.add('hidden');
+                completeSessionBtn.disabled = true;
+            }
+        }
+        
         if (sessionIndicator && sessionStatus) {
             sessionIndicator.classList.remove('hidden');
             sessionStatus.textContent = `Session Active (${duration} min)`;
@@ -1013,21 +1030,25 @@ function updateCurrentChips(playerId, chips) {
 
 // Toggle end game mode
 function toggleEndGameMode() {
-    gameState.endGameMode = !gameState.endGameMode;
-    const section = document.getElementById('settlementSection');
-    const btn = document.getElementById('endGameBtn');
-    
-    if (gameState.endGameMode) {
+    if (!sessionState.isActive) {
+        alert('Please start a session first');
+        return;
+    }
+
+    const section = document.getElementById('endGameSection');
+    const btn = document.getElementById('settlementBtn');
+
+    if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');
-        btn.innerHTML = '<i class="fas fa-times"></i> Cancel End Game';
-        btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        btn.innerHTML = '<i class="fas fa-times"></i> Cancel Settlement';
+        btn.classList.remove('bg-purple-500', 'hover:bg-purple-600');
         btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
         generateFinalChipsInputs();
     } else {
         section.classList.add('hidden');
-        btn.innerHTML = '<i class="fas fa-flag-checkered"></i> Start End Game';
+        btn.innerHTML = '<i class="fas fa-calculator"></i> Start Settlement';
         btn.classList.remove('bg-gray-500', 'hover:bg-gray-600');
-        btn.classList.add('bg-red-500', 'hover:bg-red-600');
+        btn.classList.add('bg-purple-500', 'hover:bg-purple-600');
     }
 }
 

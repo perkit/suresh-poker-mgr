@@ -147,24 +147,24 @@
                 </div>
 
                 <!-- Admin Panel -->
-                <div id="adminPanel" class="bg-white/10 backdrop-blur-md rounded-xl p-6 mb-8 hidden">
-                    <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <div id="adminPanel" class="bg-white/10 backdrop-blur-md rounded-xl p-4 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-3 flex items-center gap-2">
                         <i class="fas fa-user-shield"></i> Admin Panel
                     </h2>
-                    <div class="grid md:grid-cols-2 gap-6">
+                    <div class="grid md:grid-cols-3 gap-4">
                         <!-- User Management -->
                         <div>
-                            <h3 class="text-lg font-semibold mb-3">User Management</h3>
-                            <div class="space-y-3">
+                            <h3 class="text-sm font-semibold mb-2">User Management</h3>
+                            <div class="space-y-2">
                                 <div class="flex gap-2">
-                                    <input type="email" id="inviteEmail" placeholder="Enter Gmail to invite" 
-                                           class="flex-1 px-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                                    <input type="email" id="inviteEmail" placeholder="Gmail to invite" 
+                                           class="flex-1 px-2 py-1 bg-white/20 border border-white/30 rounded text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400">
                                     <button onclick="inviteUser()" 
-                                            class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg transition-colors">
-                                        <i class="fas fa-paper-plane"></i> Invite
+                                            class="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-sm transition-colors">
+                                        <i class="fas fa-plus"></i>
                                     </button>
                                 </div>
-                                <div id="userList" class="space-y-2 max-h-40 overflow-y-auto">
+                                <div id="userList" class="space-y-1 max-h-24 overflow-y-auto text-xs">
                                     <!-- Users will be listed here -->
                                 </div>
                             </div>
@@ -172,9 +172,29 @@
                         
                         <!-- Access Requests -->
                         <div>
-                            <h3 class="text-lg font-semibold mb-3">Access Requests</h3>
-                            <div id="accessRequests" class="space-y-2 max-h-40 overflow-y-auto">
+                            <h3 class="text-sm font-semibold mb-2">Access Requests</h3>
+                            <div id="accessRequests" class="space-y-1 max-h-24 overflow-y-auto text-xs">
                                 <!-- Requests will be listed here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Session Management -->
+                        <div>
+                            <h3 class="text-sm font-semibold mb-2">Session</h3>
+                            <div class="space-y-2">
+                                <div id="sessionInfo" class="text-xs">
+                                    <!-- Session info will be displayed here -->
+                                </div>
+                                <div class="flex gap-1">
+                                    <button onclick="startNewSession()" id="startSessionBtn"
+                                            class="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-xs transition-colors">
+                                        <i class="fas fa-play"></i> Start
+                                    </button>
+                                    <button onclick="completeSession()" id="completeSessionBtn"
+                                            class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs transition-colors" disabled>
+                                        <i class="fas fa-stop"></i> End
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -24,7 +24,9 @@ let sessionState = {
     isActive: false,
     completed: false,
     completedAt: null,
-    completedBy: null
+    completedBy: null,
+    settlementRequired: true,
+    tolerancePercent: 2
 };
 
 // Initialize the app
@@ -331,7 +333,7 @@ function updateSessionDisplay() {
     const sessionStatus = document.getElementById('sessionStatus');
     
     if (!sessionState.isActive) {
-        if (sessionInfo) sessionInfo.innerHTML = '<p class="text-sm text-green-200">No active session</p>';
+        if (sessionInfo) sessionInfo.innerHTML = '<p class="text-xs text-green-200">No active session</p>';
         if (startBtn) startBtn.disabled = false;
         if (completeBtn) completeBtn.disabled = true;
         if (sessionIndicator) {
@@ -340,16 +342,20 @@ function updateSessionDisplay() {
     } else {
         const startTime = new Date(sessionState.startedAt).toLocaleString();
         const duration = Math.floor((Date.now() - sessionState.startedAt) / 60000);
+        const settlementStatus = sessionState.settlementRequired ? 
+            '<p class="text-xs text-red-300">⚠️ Settlement required before ending</p>' : 
+            '<p class="text-xs text-green-300">✅ Ready to end session</p>';
+            
         if (sessionInfo) {
             sessionInfo.innerHTML = `
-                <p class="text-sm"><strong>Session ID:</strong> ${sessionState.id}</p>
-                <p class="text-sm"><strong>Started:</strong> ${startTime}</p>
-                <p class="text-sm"><strong>Duration:</strong> ${duration} minutes</p>
-                <p class="text-sm text-yellow-300">Session is active and will persist across browser closures</p>
+                <p class="text-xs"><strong>Session:</strong> ${sessionState.id}</p>
+                <p class="text-xs"><strong>Duration:</strong> ${duration} min</p>
+                <p class="text-xs"><strong>Tolerance:</strong> ±${sessionState.tolerancePercent}%</p>
+                ${settlementStatus}
             `;
         }
         if (startBtn) startBtn.disabled = true;
-        if (completeBtn) completeBtn.disabled = false;
+        if (completeBtn) completeBtn.disabled = sessionState.settlementRequired;
         if (sessionIndicator && sessionStatus) {
             sessionIndicator.classList.remove('hidden');
             sessionStatus.textContent = `Session Active (${duration} min)`;
@@ -550,8 +556,14 @@ function completeSession() {
         return;
     }
     
+    // Check if settlement is required
+    if (sessionState.settlementRequired) {
+        alert('Cannot end session: Settlement must be calculated first.\n\nPlease use the End Game Settlement feature to finalize buy-ins.');
+        return;
+    }
+    
     // First confirmation
-    const firstConfirm = confirm('Are you sure you want to complete the session?\n\nThis will finalize all buy-ins and settlements.');
+    const firstConfirm = confirm('Are you sure you want to complete the session?\n\nThis will finalize all buy-ins and close the session.');
     if (!firstConfirm) return;
     
     // Second confirmation with more details
@@ -560,6 +572,7 @@ function completeSession() {
     
     if (!secondConfirm) return;
     
+    // Gracefully complete session
     sessionState.completed = true;
     sessionState.completedAt = Date.now();
     sessionState.completedBy = authState.currentUser.email;
@@ -571,16 +584,16 @@ function completeSession() {
     saveGameState();
     updateSessionDisplay();
     
-    showNotification(`Session ${sessionState.id} completed by ${authState.currentUser.email}`, 'info');
+    showNotification(`Session ${sessionState.id} completed successfully`, 'success');
     
-    // Optionally show settlement if there are players
-    if (gameState.players.length > 0) {
-        setTimeout(() => {
-            if (confirm('Would you like to calculate final settlements?')) {
-                toggleEndGameMode();
-            }
-        }, 1000);
-    }
+    // Clear settlement data after completion
+    setTimeout(() => {
+        if (confirm('Session completed successfully! Would you like to start a new session?')) {
+            // Reset for new session
+            sessionState.settlementRequired = true;
+            updateSessionDisplay();
+        }
+    }, 2000);
 }
 
 // Show notification
@@ -924,7 +937,7 @@ function calculateSettlement() {
                 <div class="text-sm space-y-1">
     `;
     
-    // Generate settlement suggestions
+    // Generate settlement suggestions with tolerance
     const winners = playerResults.filter(r => r.profit > 0).sort((a, b) => b.profit - a.profit);
     const losers = playerResults.filter(r => r.profit < 0).sort((a, b) => a.profit - b.profit);
     
@@ -937,6 +950,33 @@ function calculateSettlement() {
                 }
             });
         });
+        
+        // Check if settlement is within tolerance
+        const totalChipsCounted = playerResults.reduce((sum, p) => sum + p.finalChips, 0);
+        const expectedChips = totalChipsInPlay;
+        const difference = Math.abs(totalChipsCounted - expectedChips);
+        const tolerance = expectedChips * (sessionState.tolerancePercent / 100);
+        
+        if (difference <= tolerance) {
+            html += `<div class="mt-3 p-3 bg-green-500/20 rounded-lg">
+                <p class="text-sm font-semibold text-green-300">✅ Settlement Valid</p>
+                <p class="text-xs">Chip count difference: ${difference} chips (within ±${sessionState.tolerancePercent}% tolerance)</p>
+            </div>`;
+            
+            // Mark settlement as complete
+            sessionState.settlementRequired = false;
+            updateSessionDisplay();
+            
+            showNotification('Settlement calculated successfully! Session can now be ended.', 'success');
+        } else {
+            html += `<div class="mt-3 p-3 bg-red-500/20 rounded-lg">
+                <p class="text-sm font-semibold text-red-300">⚠️ Settlement Invalid</p>
+                <p class="text-xs">Chip count difference: ${difference} chips (exceeds ±${sessionState.tolerancePercent}% tolerance)</p>
+                <p class="text-xs">Please adjust final chip counts to match total chips in play.</p>
+            </div>`;
+            
+            showNotification('Settlement outside tolerance range. Please check chip counts.', 'warning');
+        }
     } else {
         html += '<p>No settlements needed - all players broke even!</p>';
     }

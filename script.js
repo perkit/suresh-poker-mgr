@@ -393,7 +393,6 @@ function updateSessionDisplay() {
     const sessionInfo = document.getElementById('sessionInfo');
     const startBtn = document.getElementById('startSessionBtn');
     const endGameBtn = document.getElementById('endGameBtn');
-    const settlementBtn = document.getElementById('settlementBtn');
     const completeSessionBtn = document.getElementById('completeSessionBtn');
     const sessionIndicator = document.getElementById('sessionIndicator');
     const sessionStatus = document.getElementById('sessionStatus');
@@ -402,7 +401,6 @@ function updateSessionDisplay() {
         if (sessionInfo) sessionInfo.innerHTML = '<p class="text-xs text-green-200">No active session</p>';
         if (startBtn) startBtn.disabled = false;
         if (endGameBtn) endGameBtn.disabled = true;
-        if (settlementBtn) settlementBtn.disabled = true;
         if (completeSessionBtn) {
             completeSessionBtn.classList.add('hidden');
             completeSessionBtn.disabled = true;
@@ -427,7 +425,6 @@ function updateSessionDisplay() {
         }
         if (startBtn) startBtn.disabled = true;
         if (endGameBtn) endGameBtn.disabled = sessionState.settlementRequired;
-        if (settlementBtn) settlementBtn.disabled = false;
         
         // Show/hide End Session button based on settlement status
         if (completeSessionBtn) {
@@ -1035,8 +1032,8 @@ function toggleEndGameMode() {
         return;
     }
 
-    const section = document.getElementById('endGameSection');
-    const btn = document.getElementById('settlementBtn');
+    const section = document.getElementById('settlementSection');
+    const btn = document.getElementById('settlementMainBtn');
 
     if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');

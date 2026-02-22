@@ -11,11 +11,13 @@ let gameState = {
     chipsPerBuyin: 100,
     dollarPerBuyin: 20,
     players: [],
-    endGameMode: false,
     sessionActive: false,
     sessionStartedAt: null,
     sessionCompleted: false
 };
+
+// Buy-in history tracking
+let buyinHistory = [];
 
 // Session management
 let sessionState = {
@@ -71,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadGameState();
     loadSessionState();
     loadHistoricalSessions();
+    loadBuyinHistory();
     
     // Initialize admin user if first time
     if (authState.users.length === 0) {
@@ -78,15 +81,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Check if user is already logged in
-    const savedSession = localStorage.getItem('pokerSession');
-    if (savedSession) {
-        const session = JSON.parse(savedSession);
-        if (session.expires > Date.now()) {
-            authState.currentUser = session.user;
-            showMainApp();
-        } else {
-            localStorage.removeItem('pokerSession');
-        }
+    if (authState.currentUser) {
+        showMainApp();
+    } else {
+        showAuthScreen();
     }
     
     // Auto-save session periodically
@@ -95,8 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
             saveSessionState();
         }
     }, 30000); // Save every 30 seconds
-    
-    updateAuthDisplay();
 });
 
 // Initialize admin user
@@ -704,6 +700,65 @@ function calculatePlayerResults() {
     });
 }
 
+// Save buy-in history
+function saveBuyinHistory() {
+    localStorage.setItem('pokerBuyinHistory', JSON.stringify(buyinHistory));
+}
+
+// Load buy-in history
+function loadBuyinHistory() {
+    const stored = localStorage.getItem('pokerBuyinHistory');
+    if (stored) {
+        buyinHistory = JSON.parse(stored);
+    }
+}
+
+// Show buy-in history
+function showBuyinHistory() {
+    const modal = document.getElementById('buyinHistoryModal');
+    const content = document.getElementById('buyinHistoryContent');
+    
+    if (buyinHistory.length === 0) {
+        content.innerHTML = '<p class="text-center text-gray-400">No buy-in history found.</p>';
+    } else {
+        // Sort by timestamp (newest first)
+        const sortedHistory = [...buyinHistory].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        content.innerHTML = sortedHistory.map(record => {
+            const date = new Date(record.timestamp);
+            const formattedDate = date.toLocaleString();
+            
+            return `
+                <div class="bg-white/10 rounded-lg p-4 mb-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold text-lg">${record.playerName}</h4>
+                            <p class="text-sm text-gray-300">Buy-in #${record.buyinNumber}</p>
+                            <p class="text-sm text-gray-300">Session: ${record.sessionId}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-green-400 font-semibold">$${record.amount.toFixed(2)}</p>
+                            <p class="text-sm text-gray-300">${record.chips} chips</p>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-xs text-yellow-300">
+                            <i class="fas fa-clock"></i> ${formattedDate}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+// Close buy-in history modal
+function closeBuyinHistoryModal() {
+    document.getElementById('buyinHistoryModal').classList.add('hidden');
+}
+
 // Show historical sessions
 function showHistoricalSessions() {
     const modal = document.getElementById('historicalModal');
@@ -980,18 +1035,29 @@ function removePlayer(playerId) {
 
 // Add buy-in for a player (admin only)
 function addBuyin(playerId) {
-    if (authState.currentUser.role !== 'admin' && authState.currentUser.role !== 'super_admin') {
-        alert('Only admins can add buy-ins');
-        return;
-    }
     const player = gameState.players.find(p => p.id === playerId);
     if (player) {
         player.buyins++;
-        player.totalChips += gameState.chipsPerBuyin;
         player.totalSpent += gameState.dollarPerBuyin;
         player.currentChips += gameState.chipsPerBuyin;
+        
+        // Track buy-in with timestamp
+        const buyinRecord = {
+            playerId: playerId,
+            playerName: player.name,
+            buyinNumber: player.buyins,
+            amount: gameState.dollarPerBuyin,
+            chips: gameState.chipsPerBuyin,
+            timestamp: new Date().toISOString(),
+            sessionId: sessionState.id || 'no-session'
+        };
+        
+        buyinHistory.push(buyinRecord);
+        saveBuyinHistory();
+        
         saveGameState();
         updateDisplay();
+        showNotification(`${player.name} bought in for $${gameState.dollarPerBuyin.toFixed(2)}`, 'success');
     }
 }
 
@@ -1036,16 +1102,15 @@ function toggleEndGameMode() {
 
     if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');
-        btn.innerHTML = '<i class="fas fa-calculator"></i> Calculate Settlement';
+        btn.innerHTML = '<i class="fas fa-times"></i> Cancel Settlement';
         btn.classList.remove('bg-purple-500', 'hover:bg-purple-600');
-        btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+        btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
         generateFinalChipsInputs();
     } else {
-        // Calculate settlement and show results
-        calculateSettlement();
-        btn.innerHTML = '<i class="fas fa-times"></i> Close Settlement';
-        btn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-        btn.classList.add('bg-gray-500', 'hover:bg-gray-600');
+        section.classList.add('hidden');
+        btn.innerHTML = '<i class="fas fa-calculator"></i> Start Settlement';
+        btn.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+        btn.classList.add('bg-purple-500', 'hover:bg-purple-600');
     }
 }
 
@@ -1075,29 +1140,34 @@ function generateFinalChipsInputs() {
 function calculateSettlement() {
     const results = document.getElementById('settlementResults');
     
-    // Collect final chip counts
+    // First validate all players have chip counts entered (0 is valid)
+    const emptyInputs = gameState.players.filter(player => {
+        const input = document.getElementById(`final-${player.id}`);
+        return input.value === '' || input.value === null || input.value === undefined;
+    });
+    
+    if (emptyInputs.length > 0) {
+        alert('Please enter final chip counts for all players (0 is allowed)');
+        return;
+    }
+    
+    // Collect final chip counts after validation
     const finalChips = {};
     gameState.players.forEach(player => {
         const input = document.getElementById(`final-${player.id}`);
-        finalChips[player.id] = parseInt(input.value) || 0;
+        const value = parseInt(input.value) || 0;
+        finalChips[player.id] = value;
     });
-    
-    // Validate all players have chip counts entered
-    const emptyInputs = gameState.players.filter(player => !finalChips[player.id]);
-    if (emptyInputs.length > 0) {
-        alert('Please enter final chip counts for all players');
-        return;
-    }
     
     // Calculate totals
     const totalBuyins = gameState.players.reduce((sum, p) => sum + p.buyins, 0);
     const totalChipsInPlay = totalBuyins * gameState.chipsPerBuyin;
     const totalDollarsInPlay = totalBuyins * gameState.dollarPerBuyin;
     
-    // Calculate player results
+    // Calculate player results with correct profit/loss
     const playerResults = gameState.players.map(player => {
         const finalChipCount = finalChips[player.id];
-        const chipValue = totalDollarsInPlay / totalChipsInPlay;
+        const chipValue = gameState.dollarPerBuyin / gameState.chipsPerBuyin; // Fixed chip value
         const finalValue = finalChipCount * chipValue;
         const profit = finalValue - player.totalSpent;
         
@@ -1107,7 +1177,8 @@ function calculateSettlement() {
             totalSpent: player.totalSpent,
             finalChips: finalChipCount,
             finalValue: finalValue,
-            profit: profit
+            profit: profit,
+            originalProfit: profit // Keep original for verification
         };
     });
     
@@ -1119,7 +1190,7 @@ function calculateSettlement() {
                 <p><strong>Total Buy-ins:</strong> ${totalBuyins}</p>
                 <p><strong>Total Chips in Play:</strong> ${totalChipsInPlay}</p>
                 <p><strong>Total Dollars in Play:</strong> $${totalDollarsInPlay.toFixed(2)}</p>
-                <p><strong>Value per Chip:</strong> $${(totalDollarsInPlay / totalChipsInPlay).toFixed(4)}</p>
+                <p><strong>Value per Chip:</strong> $${(gameState.dollarPerBuyin / gameState.chipsPerBuyin).toFixed(4)}</p>
             </div>
             <div class="space-y-3">
     `;
@@ -1143,9 +1214,9 @@ function calculateSettlement() {
         `;
     });
     
-    // Calculate who owes whom
-    const winners = playerResults.filter(p => p.profit > 0);
-    const losers = playerResults.filter(p => p.profit < 0);
+    // Corrected settlement calculation
+    const winners = playerResults.filter(p => p.profit > 0.01);
+    const losers = playerResults.filter(p => p.profit < -0.01);
     
     if (winners.length > 0 && losers.length > 0) {
         html += `
@@ -1153,16 +1224,64 @@ function calculateSettlement() {
                 <h4 class="font-semibold mb-2">Settlement Payments:</h4>
         `;
         
-        winners.forEach(winner => {
-            losers.forEach(loser => {
-                const amount = Math.min(winner.profit, Math.abs(loser.profit));
-                if (amount > 0.01) {
-                    html += `<p>• ${loser.name} pays ${winner.name} $${amount.toFixed(2)}</p>`;
+        // Create working copies to avoid modifying original
+        const workingWinners = winners.map(w => ({...w}));
+        const workingLosers = losers.map(l => ({...l}));
+        
+        // Calculate payments correctly
+        const payments = [];
+        
+        for (let loser of workingLosers) {
+            const amountToPay = Math.abs(loser.profit); // How much this loser needs to pay
+            
+            for (let winner of workingWinners) {
+                if (winner.profit <= 0.01) continue; // Skip settled winners
+                
+                const paymentAmount = Math.min(amountToPay, winner.profit);
+                
+                if (paymentAmount > 0.01) {
+                    payments.push({
+                        from: loser.name,
+                        to: winner.name,
+                        amount: paymentAmount
+                    });
+                    
+                    // Update remaining amounts
+                    winner.profit -= paymentAmount;
+                    loser.profit += paymentAmount;
                 }
-            });
+                
+                if (loser.profit >= -0.01) break; // Loser is settled
+            }
+        }
+        
+        // Display payments
+        payments.forEach(payment => {
+            html += `<p>• ${payment.from} pays ${payment.to} $${payment.amount.toFixed(2)}</p>`;
         });
         
-        html += '</div>';
+        // Verification
+        const totalPaid = {};
+        payments.forEach(payment => {
+            totalPaid[payment.from] = (totalPaid[payment.from] || 0) + payment.amount;
+        });
+        
+        html += `
+            <div class="mt-3 p-3 bg-blue-500/20 rounded-lg">
+                <h5 class="font-semibold mb-2 text-sm">Payment Verification:</h5>
+        `;
+        
+        Object.entries(totalPaid).forEach(([playerName, amount]) => {
+            const originalLoss = Math.abs(playerResults.find(p => p.name === playerName).originalProfit);
+            const diff = Math.abs(amount - originalLoss);
+            const status = diff < 0.01 ? '✅ Correct' : `⚠️ Off by $${diff.toFixed(2)}`;
+            html += `<p class="text-xs">${playerName}: Paid $${amount.toFixed(2)}, Lost $${originalLoss.toFixed(2)} ${status}</p>`;
+        });
+        
+        html += `
+            </div>
+            <p class="text-xs text-gray-300 mt-2">Total transactions: ${payments.length}</p>
+        </div>`;
     }
     
     html += '</div></div>';

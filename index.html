@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suresh's Poker Buy-in Manager</title>
+    <title>Poker Buy-in Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -54,12 +54,7 @@
     <div id="authScreen" class="auth-container">
         <div class="glass-effect rounded-2xl p-8 max-w-md w-full mx-4 fade-in">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold mb-2 flex items-center justify-center gap-3">
-                    <span class="chip-icon"></span>
-                    Suresh's Poker Buy-in Manager
-                    <span class="chip-icon"></span>
-                </h1>
-                <p class="text-green-200">Please sign in to continue</p>
+                <p class="text-gray-300">Manage your poker game buy-ins and settlements</p>
             </div>
 
             <!-- Login Form -->
@@ -124,23 +119,14 @@
         <div class="container mx-auto px-4 py-8 max-w-6xl">
             <!-- Header with User Info -->
             <header class="mb-8">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="text-center flex-1">
-                        <h1 class="text-4xl font-bold mb-2 flex items-center justify-center gap-3">
-                            <span class="chip-icon"></span>
-                            Suresh's Poker Buy-in Manager
-                            <span class="chip-icon"></span>
-                        </h1>
-                        <p class="text-green-200">Track buy-ins, manage players, and calculate settlements easily</p>
-                    </div>
+                <div class="flex justify-end items-center mb-6">
                     <div class="flex items-center gap-4">
                         <div class="text-right">
                             <div class="text-sm text-green-200">Signed in as</div>
                             <div class="font-semibold" id="userEmail">user@example.com</div>
                             <div class="text-xs text-yellow-300" id="userRole">Admin</div>
                         </div>
-                        <button onclick="logout()" 
-                                class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-colors">
+                        <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-colors">
                             <i class="fas fa-sign-out-alt"></i> Logout
                         </button>
                     </div>
@@ -196,9 +182,9 @@
                                         <i class="fas fa-power-off"></i> End Game
                                     </button>
                                 </div>
-                                <button onclick="showHistoricalSessions()" 
-                                        class="w-full bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded text-xs transition-colors">
-                                    <i class="fas fa-history"></i> History
+                                <button onclick="showBuyinHistory()" 
+                                        class="w-full bg-purple-500 hover:bg-purple-600 px-3 py-1 rounded text-xs transition-colors">
+                                    <i class="fas fa-clock"></i> Buy-in History
                                 </button>
                             </div>
                         </div>
@@ -291,6 +277,10 @@
                 <div id="finalChipsInputs" class="space-y-3 mb-4">
                     <!-- Final chip inputs will be added here -->
                 </div>
+                <button onclick="calculateSettlement()" 
+                        class="bg-blue-500 hover:bg-blue-600 font-semibold py-2 px-6 rounded-lg transition-colors mb-4">
+                    <i class="fas fa-calculator"></i> Calculate Settlement
+                </button>
                 <div id="settlementResults" class="mt-6">
                     <!-- Settlement results will be shown here -->
                 </div>
@@ -304,6 +294,23 @@
     </div>
 
     <script src="script.js"></script>
+
+    <!-- Buy-in History Modal -->
+    <div id="buyinHistoryModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-green-800 rounded-xl p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold flex items-center gap-2">
+                    <i class="fas fa-clock"></i> Buy-in History
+                </h2>
+                <button onclick="closeBuyinHistoryModal()" class="text-gray-300 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="buyinHistoryContent">
+                <!-- Buy-in history will be shown here -->
+            </div>
+        </div>
+    </div>
 
     <!-- Historical Sessions Modal -->
     <div id="historicalModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
